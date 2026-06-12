@@ -1,0 +1,28 @@
+# Email Configuration for /career-ops coldemail
+# Copy this to email.yml and fill in your credentials
+
+# Using Gmail SMTP with App Password
+# How to generate an App Password:
+#   1. Go to https://myaccount.google.com/apppasswords
+#   2. Select "Mail" and your device
+#   3. Copy the 16-character password generated
+#   4. Paste it below as smtp_pass
+
+smtp_host: "smtp.gmail.com"
+smtp_port: 587
+smtp_secure: false  # true for 465, false for 587 (STARTTLS)
+
+smtp_user: "lockin3277@gmail.com"
+smtp_pass: "dtilabjgvqvnhplt"
+
+from_name: "Rohan P H"
+from_email: "lockin3277@gmail.com"
+
+# Email Verification (prevents bounces — optional but recommended)
+# Get a free API key from:
+#   ZeroBounce: https://www.zerobounce.net/signup/ (100 free/month — bulk SendFile API)
+#   Hunter.io:  https://hunter.io/users/sign_up   (25 free/month, individual only)
+# When using "zerobounce", the script uses the SendFile bulk API (POST /v2/sendfile)
+# to verify all draft emails upfront instead of one-by-one API calls.
+# email_verification_provider: "zerobounce"   # "zerobounce" (bulk) or "hunter" (individual)
+# email_verification_api_key: "your_api_key_here"
