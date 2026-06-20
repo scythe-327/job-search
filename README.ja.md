@@ -2,9 +2,7 @@
 
 [English](README.md) | [Español](README.es.md) | [Português (Brasil)](README.pt-BR.md) | [한국어](README.ko-KR.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-<p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="Career-Ops — マルチエージェント求職システム" width="800"></a>
-</p>
+
 
 <p align="center">
   <em>何ヶ月も泥臭く求職活動をしてきた。だから、当時欲しかったシステムを自分で作った。</em><br>
@@ -31,9 +29,7 @@
 
 ---
 
-<p align="center">
-  <img src="docs/demo.gif" alt="Career-Ops デモ" width="800">
-</p>
+
 
 <p align="center"><strong>740件以上の求人を評価 · 100件以上のパーソナライズCVを生成 · 理想のポジションを獲得</strong></p>
 

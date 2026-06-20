@@ -2,9 +2,7 @@
 
 [English](README.md) | [Español](README.es.md) | [Português (Brasil)](README.pt-BR.md) | [한국어](README.ko-KR.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-<p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="Career-Ops -- 멀티 에이전트 취업 시스템" width="800"></a>
-</p>
+
 
 <p align="center">
   <em>수개월간의 비효율적인 수동 지원 끝에, 직접 구직 파이프라인 시스템을 설계했습니다.</em><br>
@@ -32,9 +30,7 @@
 
 ---
 
-<p align="center">
-  <img src="docs/demo.gif" alt="Career-Ops 데모" width="800">
-</p>
+
 
 <p align="center"><strong>740개 이상의 채용 공고 평가 · 100개 이상의 맞춤형 이력서 생성 · 꿈의 직장 1곳 합격</strong></p>
 

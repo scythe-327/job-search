@@ -35,6 +35,14 @@ node_modules/
 bun.lock
 tmp/
 
+# Binary files (not suitable for git)
+*.pdf
+*.gif
+*.jpg
+*.jpeg
+*.png
+!.gitkeep
+
 # OS
 .DS_Store
 *.mov

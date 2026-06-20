@@ -1,8 +1,10 @@
 import express from 'express';
 import { execFile } from 'child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readdirSync, copyFileSync } from 'fs';
 import { randomUUID } from 'crypto';
 import schedule from 'node-schedule';
+
+const EMAIL_SVC = process.env.EMAIL_SERVICE_URL;
 
 const PORT = process.env.PORT || 7860;
 const jobs = {};
@@ -22,6 +24,22 @@ function ensureDataFiles() {
   }
   for (const [file, content] of Object.entries(STARTER_FILES)) {
     if (!existsSync(file)) writeFileSync(file, content, 'utf-8');
+  }
+  // Create config/email.yml from env vars (HF Spaces) — refresh always to pick up secret changes
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const yml = `smtp_host: smtp.gmail.com\nsmtp_port: 587\nsmtp_secure: false\nsmtp_user: '${process.env.SMTP_USER}'\nsmtp_pass: '${process.env.SMTP_PASS}'\nfrom_name: 'Rohan P H'\nfrom_email: '${process.env.SMTP_USER}'\ncandidate_linkedin: 'https://linkedin.com/in/rohan-p-h-876865250'\ncandidate_portfolio: 'https://rohanph-cloud-engineer-75sm7wl.gamma.site/'\n`;
+    mkdirSync('config', { recursive: true });
+    writeFileSync('config/email.yml', yml, 'utf-8');
+    console.log('Created config/email.yml from SMTP_USER/SMTP_PASS env vars');
+  }
+  // Copy persistent config from /data/config/ if available (HF Spaces)
+  if (existsSync('/data/config/')) {
+    for (const f of readdirSync('/data/config/')) {
+      if (!existsSync(f)) {
+        copyFileSync('/data/config/' + f, f);
+        console.log('Restored ' + f + ' from /data/config/');
+      }
+    }
   }
 }
 
@@ -92,7 +110,17 @@ app.post('/run/test-email', async (req, res) => {
     const { to, subject, message } = req.body || {};
     if (!to) return res.status(400).json({ error: '"to" field required' });
 
-    const { writeFileSync } = await import('fs');
+    // Use email microservice if configured (Koyeb)
+    if (EMAIL_SVC) {
+      const r = await fetch(EMAIL_SVC + '/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject: subject || 'Career-Ops Test Email', text: message || 'Test from Career-Ops.' }),
+      });
+      const d = await r.json();
+      return res.json(d);
+    }
+
     const cfg = (await import('js-yaml')).load(await import('fs').then(m => m.readFileSync('config/email.yml', 'utf-8')));
     const transporter = (await import('nodemailer')).default.createTransport({
       host: cfg.smtp_host, port: cfg.smtp_port, secure: cfg.smtp_secure,
@@ -127,6 +155,25 @@ app.post('/run/doctor', async (_req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.error?.message || err.message });
+  }
+});
+
+app.post('/run/upload-config', (req, res) => {
+  try {
+    const { files } = req.body || {};
+    if (!files || typeof files !== 'object') return res.status(400).json({ error: 'files object required' });
+    mkdirSync('/data/config', { recursive: true });
+    const written = [];
+    for (const [name, content] of Object.entries(files)) {
+      const safe = name.replace(/[^a-zA-Z0-9._-]/g, '');
+      if (!safe) continue;
+      writeFileSync('/data/config/' + safe, String(content), 'utf-8');
+      writeFileSync(safe, String(content), 'utf-8');
+      written.push(safe);
+    }
+    res.json({ success: true, files: written });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -293,13 +340,24 @@ ${cfg.candidate_linkedin || ''}`;
     const results = [];
     for (const to of guesses) {
       try {
-        await transporter.sendMail({
-          from: `"${cfg.from_name}" <${cfg.from_email}>`,
-          to, subject: `Application for ${role} at ${company}`, text: body,
-        });
-        results.push({ to, success: true });
-        sent = true;
-        break;
+        if (EMAIL_SVC) {
+          const r = await fetch(EMAIL_SVC + '/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to, subject: `Application for ${role} at ${company}`, text: body }),
+          });
+          const d = await r.json();
+          if (d.success) { results.push({ to, success: true }); sent = true; break; }
+          else { results.push({ to, success: false, error: d.error }); }
+        } else {
+          await transporter.sendMail({
+            from: `"${cfg.from_name}" <${cfg.from_email}>`,
+            to, subject: `Application for ${role} at ${company}`, text: body,
+          });
+          results.push({ to, success: true });
+          sent = true;
+          break;
+        }
       } catch (e) {
         results.push({ to, success: false, error: e.message });
       }

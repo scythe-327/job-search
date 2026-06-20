@@ -1,6 +1,8 @@
 # Career-Ops Deployed API
 
-Base URL: `https://gay-delly-scythe-327-71885d1c.koyeb.app`
+Base URL: `https://scythe327-career-ops.hf.space`
+
+> **Deployment**: Hugging Face Spaces (Docker) — 2 vCPU, 16 GB RAM, persistent storage at `/data`
 
 ---
 
@@ -11,7 +13,7 @@ Base URL: `https://gay-delly-scythe-327-71885d1c.koyeb.app`
 Check if the server is alive.
 
 ```powershell
-curl.exe https://gay-delly-scythe-327-71885d1c.koyeb.app/health
+curl.exe https://scythe327-career-ops.hf.space/health
 ```
 
 Response:
@@ -30,7 +32,7 @@ Response:
 Scans job boards and company career pages (Ashby, Greenhouse, Lever, Wellfound, etc.) for matching roles.
 
 ```powershell
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/scan
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/scan
 ```
 
 Options (JSON body):
@@ -55,13 +57,13 @@ Run one or more scrapers with a single request. Supports:
 
 ```powershell
 $body = '{"source":"yc-public"}'
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/scrape ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/scrape ^
   -H "Content-Type: application/json" -d $body
 ```
 
 ```powershell
 $body = '{"source":"yc","role":"eng","location":"Remote","hits":10}'
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/scrape ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/scrape ^
   -H "Content-Type: application/json" -d $body
 ```
 
@@ -82,7 +84,7 @@ Give it a company name and role. The server will:
 
 ```powershell
 $body = '{"company":"Zymbly","role":"Forward Deployed Engineer"}'
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/outreach-for ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/outreach-for ^
   -H "Content-Type: application/json" -d $body
 ```
 
@@ -106,7 +108,7 @@ Response:
 Sends all "draft" rows from `data/outreach.tsv` through the full pipeline (verification → throttle → send). Max 20 emails per run.
 
 ```powershell
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/send-outreach
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/send-outreach
 ```
 
 ### Send Test Email
@@ -117,7 +119,7 @@ Send a one-off email to any address.
 
 ```powershell
 $body = '{"to":"someone@gmail.com","subject":"Hello","message":"This is a test"}'
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/test-email ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/test-email ^
   -H "Content-Type: application/json" -d $body
 ```
 
@@ -132,7 +134,7 @@ curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/test-email 
 Runs a health check on the system — validates config files, dependencies, and connectivity.
 
 ```powershell
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/doctor
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/doctor
 ```
 
 ### Verify Pipeline
@@ -142,7 +144,7 @@ curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/doctor
 Verifies the end-to-end pipeline is functional.
 
 ```powershell
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/verify
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/verify
 ```
 
 ---
@@ -155,7 +157,7 @@ Convert HTML to PDF using Playwright (Chromium).
 
 ```powershell
 $body = '{"input":"input.html","output":"output/cv.pdf"}'
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/pdf ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/pdf ^
   -H "Content-Type: application/json" -d $body
 ```
 
@@ -171,7 +173,7 @@ Search YC Work at a Startup with filters. Requires `YC_ALGOLIA_KEY` secret.
 
 ```powershell
 $body = '{"role":"eng","location":"Remote","hits":20}'
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/yc-fetch ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/yc-fetch ^
   -H "Content-Type: application/json" -d $body
 ```
 
@@ -182,7 +184,7 @@ curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/yc-fetch ^
 Lists all YC companies via the public API (no key needed).
 
 ```powershell
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/yc-scrape
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/yc-scrape
 ```
 
 ### Deep YC Engineering Scrape
@@ -193,8 +195,57 @@ Filters YC jobs by engineering role with pagination.
 
 ```powershell
 $body = '{"filters":"role:eng","hits":100}'
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/yc-scrape-eng ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/yc-scrape-eng ^
   -H "Content-Type: application/json" -d $body
+```
+
+---
+
+## AI-Powered Prompts (Async)
+
+### Run AI Prompt
+
+**POST** `/run/ai-prompt`
+
+Run an AI prompt via `opencode-ai` (built-in model, no external API key needed). Returns immediately with a `job_id` — poll the GET endpoint for results.
+
+```powershell
+Set-Content -Path body.json -Value '{"prompt":"List 3 SRE best practices"}'
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/ai-prompt ^
+  -H "Content-Type: application/json" -d @body.json
+```
+
+Response:
+```json
+{ "success": true, "job_id": "a1b2c3d4", "status": "running" }
+```
+
+### Poll AI Result
+
+**GET** `/run/ai-prompt/:jobId`
+
+```powershell
+curl.exe https://scythe327-career-ops.hf.space/run/ai-prompt/a1b2c3d4
+```
+
+Response (running):
+```json
+{ "job_id": "a1b2c3d4", "status": "running", "result": null }
+```
+
+Response (done):
+```json
+{ "job_id": "a1b2c3d4", "status": "done", "result": "...", "error": null }
+```
+
+### List AI Jobs
+
+**GET** `/run/ai-prompt`
+
+Lists all recent AI prompt jobs.
+
+```powershell
+curl.exe https://scythe327-career-ops.hf.space/run/ai-prompt
 ```
 
 ---
@@ -216,7 +267,7 @@ The server auto-runs these if the corresponding env vars are set:
 ### 1. Check the server is alive
 
 ```powershell
-curl.exe https://gay-delly-scythe-327-71885d1c.koyeb.app/health
+curl.exe https://scythe327-career-ops.hf.space/health
 # → { "status": "ok", "uptime": 137 }
 ```
 
@@ -224,7 +275,7 @@ curl.exe https://gay-delly-scythe-327-71885d1c.koyeb.app/health
 
 ```powershell
 # Quick public YC scan (no key needed)
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/scrape ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/scrape ^
   -H "Content-Type: application/json" -d '{"source":"yc-public"}'
 # → { "success": true, "results": [...] }
 ```
@@ -232,7 +283,7 @@ curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/scrape ^
 ### 3. Send a targeted outreach
 
 ```powershell
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/outreach-for ^
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/outreach-for ^
   -H "Content-Type: application/json" -d '{"company":"Zymbly","role":"Forward Deployed Engineer"}'
 # → { "success": true, "emails_tried": [...] }
 ```
@@ -240,7 +291,7 @@ curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/outreach-fo
 ### 4. Run diagnostics
 
 ```powershell
-curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/doctor
+curl.exe -X POST https://scythe327-career-ops.hf.space/run/doctor
 # → { "success": true }
 ```
 
@@ -249,6 +300,7 @@ curl.exe -X POST https://gay-delly-scythe-327-71885d1c.koyeb.app/run/doctor
 ## Notes
 
 - Use a temp file for JSON body in PowerShell: `Set-Content -Path body.json -Value '...'` then `curl.exe -d "@body.json"`
-- The free tier has no persistent storage — data resets on each deploy
-- Config files (`config/email.yml`, `config/profile.yml`, `portals.yml`, `cv.md`) are injected via Koyeb Config Files and reference Koyeb Secrets with `{{ secret.NAME }}` syntax
+- Persistent storage at `/data` — config files (`profile.yml`, `portals.yml`, `cv.md`) go in `/data/config/` and survive redeploys
+- SMTP credentials (`SMTP_USER`, `SMTP_PASS`) are injected via HF Secrets
+- `config/email.yml` is auto-created at startup from `SMTP_USER`/`SMTP_PASS` env vars
 - `YC_ALGOLIA_KEY` is optional — Algolia-based endpoints work without it (public endpoints don't need it)
