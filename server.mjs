@@ -256,6 +256,127 @@ app.post('/run/yc-email', async (_req, res) => {
   }
 });
 
+app.post('/run/yc-outreach', async (req, res) => {
+  try {
+    const { readFileSync, existsSync, writeFileSync } = await import('fs');
+    const jsYaml = await import('js-yaml');
+
+    // 1. Fast YC query — only targeted terms, no 30-query crawl
+    const HEADERS = { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' };
+    const terms = ['cloud engineer', 'backend engineer', 'platform engineer', 'infrastructure', 'devops'];
+    const seen = new Map();
+    for (const term of terms) {
+      try {
+        const r = await fetch(`https://www.workatastartup.com/jobs/search?q=${encodeURIComponent(term)}`, { headers: HEADERS });
+        const data = await r.json();
+        for (const j of (data.jobs || [])) {
+          if (!seen.has(j.id)) seen.set(j.id, {
+            id: j.id, title: j.title || '', company: j.companyName || '',
+            location: j.location || '', job_type: j.jobType || '',
+            role: j.roleType || '', salary: j.salary || '',
+            batch: j.companyBatch || '', oneliner: j.companyOneLiner || '',
+            url: j.applyUrl || '',
+          });
+        }
+      } catch {}
+    }
+    const allJobs = Array.from(seen.values());
+
+    // 2. Score & shortlist — match against Rohan's profile keywords
+    const keywords = ['cloud', 'backend', 'platform', 'infrastructure', 'aws', 'java', 'serverless', 'devops', 'sre', 'kubernetes', 'terraform', 'engineer'];
+    const scored = allJobs.map(j => {
+      const text = (j.title + ' ' + j.oneliner).toLowerCase();
+      const score = keywords.filter(k => text.includes(k)).length;
+      return { ...j, score };
+    }).filter(j => j.score > 0).sort((a, b) => b.score - a.score);
+
+    const top = scored.slice(0, 3);
+    if (!top.length) return res.json({ success: false, error: 'No matching jobs found', total: allJobs.length });
+
+    // 3. For the top job, try to find founder/contact info
+    const target = top[0];
+    let contactEmail = null;
+    let contactName = null;
+
+    // Try fetching the company's job page on workatastartup.com
+    if (target.id) {
+      try {
+        const appR = await fetch(`https://www.workatastartup.com/companies/${encodeURIComponent(target.company?.toLowerCase().replace(/[^a-z0-9]/g, '-') || '')}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+        });
+        const appData = await appR.json();
+        if (appData.company) {
+          contactEmail = appData.company.founder_email || appData.company.contact_email;
+          contactName = appData.company.founder_name || appData.company.contact_name;
+        }
+      } catch {}
+    }
+
+    // Fallback: guess founder email pattern
+    if (!contactEmail) {
+      const domain = target.company?.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+      const nameParts = target.company?.split(/[\s-]+/) || [];
+      const first = nameParts[0]?.toLowerCase() || 'hello';
+      contactEmail = `${first}@${domain}`;
+      contactName = `${target.company} Team`;
+    }
+
+    // 4. Build personalized outreach
+    const cv = existsSync('cv.md') ? readFileSync('cv.md', 'utf-8') : '';
+    const headline = 'Cloud & Backend Engineer specializing in serverless AWS, Java microservices, and AI';
+    const highlights = cv.includes('60%')
+      ? 'reducing cold-start latency by 60%, cutting cloud OpEx by 65%, and building LLM-powered RAG systems'
+      : 'building and scaling distributed systems on AWS';
+
+    const cfg = jsYaml.load(readFileSync('config/email.yml', 'utf-8'));
+    const name = cfg.from_name || 'Rohan P H';
+
+    const emailBody = `Hi ${contactName || target.company} team,
+
+I'm reaching out about the ${target.title} role at ${target.company}. 
+
+I'm ${name}, a ${headline}. At BT Openreach, I've been owning end-to-end delivery of serverless platforms — ${highlights}.
+
+I'm drawn to ${target.company} because of ${target.oneliner || 'the impactful work you\'re doing'}, and I'm confident my background in AWS, distributed systems, and Java aligns well with what you're building.
+
+I'd love to chat about how I can contribute.
+
+Best,
+${name}
+${cfg.candidate_linkedin || ''}`;
+
+    // 5. Send email via Koyeb proxy
+    let emailResult = { success: false };
+    if (EMAIL_SVC) {
+      try {
+        const r = await fetch(EMAIL_SVC.replace(/\/+$/, '') + '/run/test-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: contactEmail, subject: `Application for ${target.title} at ${target.company}`, message: emailBody }),
+        });
+        emailResult = await r.json();
+      } catch (e) { emailResult = { success: false, error: e.message }; }
+    }
+
+    // 6. Save outreach draft
+    const ts = new Date().toISOString();
+    const draftLine = `${ts}\t${target.company}\t${target.title}\t${contactName}\t${contactEmail}\toutreach\tpending\tApplication for ${target.title} at ${target.company}\t${emailBody.substring(0,100)}...\n`;
+    writeFileSync('data/outreach.tsv', draftLine, { flag: 'as+' });
+
+    res.json({
+      success: true,
+      target: { company: target.company, title: target.title, score: target.score },
+      contact: { name: contactName, email: contactEmail },
+      email_sent: emailResult.success,
+      total_scraped: allJobs.length,
+      shortlisted: scored.length,
+      top_3: scored.slice(0, 3).map(j => ({ company: j.company, title: j.title, score: j.score })),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/run/yc-scrape-eng', async (req, res) => {
   try {
     const args = [];
