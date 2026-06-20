@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { randomUUID } from 'crypto';
 import schedule from 'node-schedule';
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 7860;
 const jobs = {};
 
 const DATA_DIRS = ['output', 'reports', 'jds', 'batch/tracker-additions', 'tmp'];

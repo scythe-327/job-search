@@ -13,6 +13,6 @@ RUN npm install -g opencode-ai
 
 COPY . .
 
-EXPOSE 8000
+EXPOSE 7860
 
 CMD ["node", "server.mjs"]
