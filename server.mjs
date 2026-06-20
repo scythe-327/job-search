@@ -85,6 +85,40 @@ app.post('/run/pdf', async (req, res) => {
   }
 });
 
+app.post('/run/test-email', async (req, res) => {
+  try {
+    const { to, subject, message } = req.body || {};
+    if (!to) return res.status(400).json({ error: '"to" field required' });
+
+    const { writeFileSync } = await import('fs');
+    const cfg = (await import('js-yaml')).load(await import('fs').then(m => m.readFileSync('config/email.yml', 'utf-8')));
+    const transporter = (await import('nodemailer')).default.createTransport({
+      host: cfg.smtp_host, port: cfg.smtp_port, secure: cfg.smtp_secure,
+      auth: { user: cfg.smtp_user, pass: cfg.smtp_pass },
+    });
+
+    const body = `Hi,
+
+This is a test email from the Career-Ops deployment.
+
+${message || 'Test message - no content.'}
+
+---
+Best regards,
+${cfg.from_name || 'Career-Ops'}
+${cfg.candidate_linkedin || ''}`;
+
+    await transporter.sendMail({
+      from: `"${cfg.from_name}" <${cfg.from_email}>`,
+      to, subject: subject || 'Career-Ops Test Email', text: body,
+    });
+
+    res.json({ success: true, to });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/run/doctor', async (_req, res) => {
   try {
     await runScript('doctor.mjs');
