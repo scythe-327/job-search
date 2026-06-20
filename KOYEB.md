@@ -58,7 +58,7 @@ candidate_portfolio: 'https://rohanph-cloud-engineer-75sm7wl.gamma.site/'
    - `/app/jds`
    - `/app/batch/tracker-additions`
 8. **Environment variables**:
-   - `PORT` → `3000`
+   - `PORT` → `8000`
    - `SCAN_SCHEDULE` → `0 9 * * 1` (scan every Monday 9am — optional)
    - `OUTREACH_SCHEDULE` → `0 10 * * *` (outreach daily 10am — optional)
    - `YC_SCHEDULE` → `0 8 * * 1` (YC scrape every Monday 8am — optional)
