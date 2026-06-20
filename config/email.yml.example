@@ -12,11 +12,11 @@ smtp_host: "smtp.gmail.com"
 smtp_port: 587
 smtp_secure: false  # true for 465, false for 587 (STARTTLS)
 
-smtp_user: "lockin3277@gmail.com"
-smtp_pass: "dtilabjgvqvnhplt"
+smtp_user: "your_email@gmail.com"
+smtp_pass: "your_app_password"
 
 from_name: "Rohan P H"
-from_email: "lockin3277@gmail.com"
+from_email: "rohanph3277@gmail.com"
 
 # Email Verification (prevents bounces — optional but recommended)
 # Get a free API key from:

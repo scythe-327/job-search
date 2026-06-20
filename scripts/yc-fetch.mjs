@@ -1,21 +1,5 @@
 #!/usr/bin/env node
-/**
- * YC Job Fetcher + Cold Outreach Pipeline
- *
- * Three modes:
- *   1) FETCH  — Query YC's Algolia job index
- *   2) PARSE  — Parse YC job listings you paste as text
- *   3) SEND   — Generate CVs + send cold emails to founders
- *
- * Uses curl.exe for Algolia API since Node.js https fails with Algolia secured keys.
- *
- * Usage:
- *   node scripts/yc-fetch.mjs fetch [options]   # Fetch from Algolia
- *   node scripts/yc-fetch.mjs parse <file>       # Parse pasted YC listings
- *   node scripts/yc-fetch.mjs send               # Show pipeline instructions
- */
 
-import { execFileSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,7 +10,6 @@ const ROOT = path.join(__dirname, '..');
 const ALGOLIA_APP_ID = '45BWZJ1SGC';
 const JOBS_INDEX = 'WaaSPublicCompanyJob_created_at_desc_production';
 
-// ─── CLI ────────────────────────────────────────────────────────────
 const mode = process.argv[2] || 'fetch';
 const args = process.argv.slice(3);
 const opts = {
@@ -66,42 +49,36 @@ USAGE:
 
   # Show pipeline instructions
   node scripts/yc-fetch.mjs send
+
+  # API key can also be set via YC_ALGOLIA_KEY env var
 `); }
 
-// ─── curl.exe helper ──────────────────────────────────────────────────
-function curlAlgolia(apiKey, indexName, body) {
+async function queryAlgolia(apiKey, indexName, body) {
   const endpoint = `https://${ALGOLIA_APP_ID.toLowerCase()}-dsn.algolia.net/1/indexes/${indexName}/query`;
-  const bodyStr = JSON.stringify(body);
-  const tmpFile = path.join(ROOT, 'tmp', '_algolia_body.json');
-  writeFileSync(tmpFile, bodyStr, 'utf-8');
-
-  const args = [
-    '-X', 'POST', endpoint,
-    '-H', `X-Algolia-Application-Id: ${ALGOLIA_APP_ID}`,
-    '-H', `X-Algolia-API-Key: ${apiKey}`,
-    '-H', 'Content-Type: application/json',
-    '-d', `@${tmpFile}`,
-    '--silent',
-  ];
-
-  const stdout = execFileSync('curl.exe', args, { timeout: 30000, encoding: 'utf-8' });
-  const result = JSON.parse(stdout);
-  if (result.status === 403 || result.message) {
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'X-Algolia-Application-Id': ALGOLIA_APP_ID,
+      'X-Algolia-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const result = await res.json();
+  if (!res.ok || result.status === 403 || result.message) {
     if (result.message?.includes('Invalid')) {
-      throw new Error(`Algolia auth failed: ${result.message}. Try using --api-key with a valid key.`);
+      throw new Error(`Algolia auth failed: ${result.message}. Check your YC_ALGOLIA_KEY.`);
     }
     throw new Error(`Algolia error: ${JSON.stringify(result)}`);
   }
   return result;
 }
 
-// ─── Fetch Mode ──────────────────────────────────────────────────────
 async function cmdFetch() {
-  let apiKey = opts.apiKey;
+  const apiKey = opts.apiKey || process.env.YC_ALGOLIA_KEY || '';
   if (!apiKey) {
-    console.log('❌ No API key provided. Use --api-key <key>');
+    console.log('❌ No API key provided. Use --api-key <key> or set YC_ALGOLIA_KEY env var.');
     console.log('💡 Get the key from the ycombinator.com page (AlgoliaOpts.key) and pass it.');
-    console.log('   Example: --api-key "ZTkzNDY3NzFl..."');
     process.exit(1);
   }
 
@@ -115,7 +92,7 @@ async function cmdFetch() {
   if (filters.length) console.log(`   Filters: ${filters.join(' AND ')}`);
 
   try {
-    const result = curlAlgolia(apiKey, JOBS_INDEX, {
+    const result = await queryAlgolia(apiKey, JOBS_INDEX, {
       query: opts.query,
       hitsPerPage: opts.hits,
       page: opts.page,
@@ -135,7 +112,7 @@ async function cmdFetch() {
     for (const [i, job] of result.hits.entries()) {
       console.log(`${i+1}. [${job.company_name}] ${job.title}`);
       console.log(`   ${(job.locations_for_search||[]).join(', ') || 'N/A'} | remote:${job.remote||'?'}`);
-      console.log(`   Exp: ${job.min_experience ?? 'Any'}yr | ${'https://www.workatastartup.com' + (job.search_path||'')}`);
+      console.log(`   Exp: ${job.min_experience ?? 'Any'}yr | https://www.workatastartup.com${job.search_path||''}`);
       console.log('');
     }
 
@@ -148,7 +125,6 @@ async function cmdFetch() {
   }
 }
 
-// ─── PARSE MODE ──────────────────────────────────────────────────────
 function parseListingText(text) {
   const companies = [];
   const blocks = text.split(/\n(?=[A-Z][a-z]+\w*\()/);
@@ -167,11 +143,11 @@ function parseListingText(text) {
         company.batch = headerMatch[2];
         continue;
       }
-      if (line.includes(',') && !line.includes('$') && !line.includes('%') && !line.includes('₹') && !line.includes('£') && !line.includes('€')) {
+      if (line.includes(',') && !line.includes('$') && !line.includes('%') && !line.includes('\u20b9') && !line.includes('\u00a3') && !line.includes('\u20ac')) {
         const locMatch = line.match(/^[A-Za-z\s,.-]+$/);
         if (locMatch) { company.location = line; continue; }
       }
-      if (line.includes('$') || line.includes('₹') || line.includes('£') || line.includes('€')) {
+      if (line.includes('$') || line.includes('\u20b9') || line.includes('\u00a3') || line.includes('\u20ac')) {
         company.salary = line; continue;
       }
       if (line.length > 20 && !line.startsWith('View job') && !line.startsWith('See all') && !line.startsWith('Apply')) {
@@ -205,7 +181,7 @@ async function cmdParse() {
   const companies = parseListingText(text);
   console.log(`\n📊 Parsed ${companies.length} companies:\n`);
   for (const c of companies) {
-    console.log(`  ${c.name} (${c.batch || '?'}) — ${c.location || '?'}`);
+    console.log(`  ${c.name} (${c.batch || '?'}) \u2014 ${c.location || '?'}`);
     if (c.salary) console.log(`    Salary: ${c.salary}`);
     if (c.description) console.log(`    ${c.description.substring(0, 120)}...`);
     if (c.roles.length) console.log(`    Roles: ${c.roles.join(', ')}`);
@@ -213,10 +189,9 @@ async function cmdParse() {
   }
 
   writeFileSync(file, JSON.stringify(companies, null, 2));
-  console.log(`💾 Saved to ${file}`);
+  console.log(`\u{1F4BE} Saved to ${file}`);
 }
 
-// ─── SEND MODE ──────────────────────────────────────────────────────
 function cmdSend() {
   console.log(`
 📧 Cold Outreach Pipeline
@@ -225,7 +200,7 @@ To send cold emails to YC founders, use the existing pipeline:
   - data/outreach.tsv    (outreach database)
   - send-outreach.mjs     (email dispatcher)
   - config/email.yml      (SMTP config)
-  - generate-pdf.mjs      (HTML → PDF)
+  - generate-pdf.mjs      (HTML \u2192 PDF)
 
 Workflow:
   1. node scripts/yc-fetch.mjs fetch --api-key "<key>" -n 20 -o jobs.json
@@ -234,7 +209,6 @@ Workflow:
 `);
 }
 
-// ─── Main ────────────────────────────────────────────────────────────
 switch (mode) {
   case 'fetch': await cmdFetch(); break;
   case 'parse': await cmdParse(); break;

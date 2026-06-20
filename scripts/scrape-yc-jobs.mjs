@@ -1,15 +1,6 @@
 #!/usr/bin/env node
-/**
- * YC Engineering Job Scraper
- *
- * Usage:
- *   node scripts/scrape-yc-jobs.mjs --api-key "<key>" [--filters "role:eng"] [--hits 100]
- *
- * API key: page source of https://www.workatastartup.com/companies → window.AlgoliaOpts.key
- */
 
-import { execFileSync } from 'child_process';
-import { existsSync, writeFileSync, readFileSync, mkdirSync, unlinkSync } from 'fs';
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -21,7 +12,6 @@ if (!existsSync(TMP)) mkdirSync(TMP, { recursive: true });
 const ALGOLIA_APP_ID = '45BWZJ1SGC';
 const JOBS_INDEX = 'WaaSPublicCompanyJob_created_at_desc_production';
 const API_ENDPOINT = `https://${ALGOLIA_APP_ID.toLowerCase()}-dsn.algolia.net/1/indexes/${JOBS_INDEX}/query`;
-const PS_SCRIPT = path.join(__dirname, 'invoke-algolia.ps1');
 
 const EXTRACT_FIELDS = [
   'title', 'company_name', 'company_website', 'company_description',
@@ -30,8 +20,7 @@ const EXTRACT_FIELDS = [
   'us_visa_required', 'created_at', 'search_path', 'description',
 ];
 
-// ─── CLI ────────────────────────────────────────────────────────────
-let apiKey = '';
+let apiKey = process.env.YC_ALGOLIA_KEY || '';
 let outputDir = path.join(ROOT, 'data');
 let filters = 'role:eng';
 let hitsPerPage = 100;
@@ -53,42 +42,31 @@ YC Engineering Job Scraper
 Usage:
   node scripts/scrape-yc-jobs.mjs --api-key "<key>"
   node scripts/scrape-yc-jobs.mjs -k "<key>" -f "role:eng" -n 100 -o ./data
+  # Or set YC_ALGOLIA_KEY env var instead of --api-key
 `); }
 
-if (!apiKey) { console.log('❌ --api-key is required'); help(); process.exit(1); }
+if (!apiKey) { console.log('❌ --api-key or YC_ALGOLIA_KEY env var is required'); help(); process.exit(1); }
 
-// ─── Invoke Algolia via PowerShell (writes response to file) ─────────
-function invokeAlgolia(body) {
-  const bodyFile = path.join(TMP, '_algolia_req.json');
-  const outFile = path.join(TMP, '_algolia_resp.json');
-  writeFileSync(bodyFile, JSON.stringify(body), 'utf-8');
-
-  execFileSync('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-    '-File', PS_SCRIPT,
-    '-ApiKey', apiKey,
-    '-BodyFile', bodyFile,
-    '-OutFile', outFile,
-    '-ApiEndpoint', API_ENDPOINT,
-  ], { timeout: 60000, encoding: 'utf-8', stdio: 'pipe' });
-
-  if (!existsSync(outFile)) {
-    throw new Error('Response file not created');
+async function queryAlgolia(body) {
+  const res = await fetch(API_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'X-Algolia-Application-Id': ALGOLIA_APP_ID,
+      'X-Algolia-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const result = await res.json();
+  if (!res.ok || result.message) {
+    if (result.message?.includes('Invalid')) {
+      throw new Error(`Algolia auth failed: ${result.message}. Check your YC_ALGOLIA_KEY.`);
+    }
+    throw new Error(`Algolia error: ${JSON.stringify(result)}`);
   }
-
-  const raw = readFileSync(outFile, 'utf-8');
-  try {
-    unlinkSync(outFile);
-  } catch {}
-
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error(`JSON parse failed. Raw start: ${raw.substring(0, 200)}`);
-  }
+  return result;
 }
 
-// ─── CSV ────────────────────────────────────────────────────────────
 function escapeCsv(val) {
   if (val === null || val === undefined) return '';
   const s = String(val);
@@ -126,9 +104,8 @@ function flattenJob(job) {
   };
 }
 
-// ─── Main ────────────────────────────────────────────────────────────
 async function main() {
-  console.log('\n🔍 Scraping YC engineering jobs...\n');
+  console.log('\n\u{1F50D} Scraping YC engineering jobs...\n');
   const allJobs = new Map();
   let page = 0;
   let totalHits = 0;
@@ -140,15 +117,15 @@ async function main() {
     };
 
     try {
-      const result = invokeAlgolia(body);
+      const result = await queryAlgolia(body);
       const hits = result.hits || [];
 
       if (page === 0) {
         totalHits = result.nbHits || 0;
-        console.log(`📊 Total: ${totalHits}, fetching ${hitsPerPage}/page...\n`);
+        console.log(`\u{1F4CA} Total: ${totalHits}, fetching ${hitsPerPage}/page...\n`);
       }
 
-      if (hits.length === 0) { console.log(`   ✓ Page ${page}: empty.`); break; }
+      if (hits.length === 0) { console.log(`   \u2713 Page ${page}: empty.`); break; }
 
       let newCount = 0;
       for (const job of hits) {
@@ -160,22 +137,20 @@ async function main() {
       console.log(`   Page ${page}: ${hits.length} hits, ${newCount} new (${allJobs.size} total)`);
       page++;
     } catch (err) {
-      console.log(`\n❌ Page ${page} failed: ${err.message}`);
+      console.log(`\n\u274C Page ${page} failed: ${err.message}`);
       break;
     }
   }
 
   const jobs = Array.from(allJobs.values());
-  console.log(`\n✅ Done. ${jobs.length} unique jobs.\n`);
+  console.log(`\n\u2705 Done. ${jobs.length} unique jobs.\n`);
 
   if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
 
-  // JSON
   const jsonPath = path.join(outputDir, 'yc-engineering-jobs.json');
   writeFileSync(jsonPath, JSON.stringify({ total: jobs.length, jobs }, null, 2), 'utf-8');
-  console.log(`💾 ${jsonPath}`);
+  console.log(`\u{1F4BE} ${jsonPath}`);
 
-  // CSV
   const csvHeaders = ['objectID','job_title','company_name','company_website',
     'company_description','team_size','location','remote','job_type',
     'role','eng_type','experience','salary_available','equity_available',
@@ -186,13 +161,12 @@ async function main() {
   }
   const csvPath = path.join(outputDir, 'yc-engineering-jobs.csv');
   writeFileSync(csvPath, '\uFEFF' + csvLines.join('\r\n'), 'utf-8');
-  console.log(`💾 ${csvPath}`);
+  console.log(`\u{1F4BE} ${csvPath}`);
 
-  // Summary
   const r = j => j.remote === 'yes', i = j => j.location.includes('IN'),
     u = j => j.location.includes('US'), vs = j => j.visa_required === 'yes',
     nv = j => j.visa_required === 'none';
-  console.log(`\n📈 Remote:${jobs.filter(r).length} India:${jobs.filter(i).length} US:${jobs.filter(u).length} Visa:${jobs.filter(vs).length} NoVisa:${jobs.filter(nv).length}`);
+  console.log(`\n\u{1F4C8} Remote:${jobs.filter(r).length} India:${jobs.filter(i).length} US:${jobs.filter(u).length} Visa:${jobs.filter(vs).length} NoVisa:${jobs.filter(nv).length}`);
 }
 
 main();

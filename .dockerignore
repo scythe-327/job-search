@@ -1,0 +1,7 @@
+node_modules
+.git
+.gitkeep
+*.log
+.env
+.envrc
+package-lock.json

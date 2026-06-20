@@ -15,7 +15,7 @@
     "rollback": "node update-system.mjs rollback",
     "liveness": "node check-liveness.mjs",
     "scan": "node scan.mjs",
-"send-outreach": "node send-outreach.mjs"
+    "send-outreach": "node send-outreach.mjs"
   },
   "keywords": [
     "ai",
@@ -32,7 +32,9 @@
   },
   "license": "MIT",
   "dependencies": {
+    "express": "^4.22.2",
     "js-yaml": "^4.1.1",
+    "node-schedule": "^2.1.1",
     "nodemailer": "^8.0.7",
     "playwright": "^1.58.1"
   }

@@ -2,6 +2,11 @@
 data/applications.md
 data/pipeline.md
 data/scan-history.tsv
+data/outreach.tsv
+data/follow-ups.md
+data/*.csv
+data/*.json
+!data/.gitkeep
 reports/*.md
 !reports/.gitkeep
 output/*
@@ -20,6 +25,7 @@ config/profile.yml
 config/email.yml
 portals.yml
 modes/_profile.md
+article-digest.md
 .update-dismissed
 .update-lock
 
@@ -27,6 +33,7 @@ modes/_profile.md
 .resolved-prompt-*
 node_modules/
 bun.lock
+tmp/
 
 # OS
 .DS_Store

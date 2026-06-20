@@ -9,7 +9,7 @@ Candidate: **Rohan P H** — Cloud & Backend Engineer (Java, AWS, Quarkus/Spring
 - Based: Bengaluru, India (IST, GMT+5:30)
 - Indian passport holder — needs worldwide-remote roles (no location restrictions)
 - Must pay in stronger currency (USD/EUR/GBP/CHF) — NOT INR-only
-- Email: lockin3277@gmail.com
+- Email: rohanph3277@gmail.com
 - LinkedIn: linkedin.com/in/rohan-p-h-876865250
 - Portfolio: https://rohanph-cloud-engineer-75sm7wl.gamma.site/
 - CV: cv.md (project root)
