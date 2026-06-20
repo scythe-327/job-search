@@ -290,6 +290,7 @@ app.post('/run/yc-outreach', async (req, res) => {
   try {
     const { readFileSync, existsSync, writeFileSync } = await import('fs');
     const jsYaml = await import('js-yaml');
+    const count = Math.min(Math.max(parseInt(req.body?.count) || 1, 1), 5);
 
     // 1. Fast YC query — only targeted terms, no 30-query crawl
     const HEADERS = { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' };
@@ -320,48 +321,45 @@ app.post('/run/yc-outreach', async (req, res) => {
       return { ...j, score };
     }).filter(j => j.score > 0).sort((a, b) => b.score - a.score);
 
-    const top = scored.slice(0, 3);
-    if (!top.length) return res.json({ success: false, error: 'No matching jobs found', total: allJobs.length });
+    const topN = scored.slice(0, Math.max(count, 3));
+    if (!topN.length) return res.json({ success: false, error: 'No matching jobs found', total: allJobs.length });
 
-    // 3. For the top job, try to find founder/contact info
-    const target = top[0];
-    let contactEmail = null;
-    let contactName = null;
-
-    // Try fetching the company's job page on workatastartup.com
-    if (target.id) {
-      try {
-        const appR = await fetch(`https://www.workatastartup.com/companies/${encodeURIComponent(target.company?.toLowerCase().replace(/[^a-z0-9]/g, '-') || '')}`, {
-          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
-        });
-        const appData = await appR.json();
-        if (appData.company) {
-          contactEmail = appData.company.founder_email || appData.company.contact_email;
-          contactName = appData.company.founder_name || appData.company.contact_name;
-        }
-      } catch {}
-    }
-
-    // Fallback: guess founder email pattern
-    if (!contactEmail) {
-      const domain = target.company?.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
-      const nameParts = target.company?.split(/[\s-]+/) || [];
-      const first = nameParts[0]?.toLowerCase() || 'hello';
-      contactEmail = `${first}@${domain}`;
-      contactName = `${target.company} Team`;
-    }
-
-    // 4. Build personalized outreach
+    const cfg = jsYaml.load(readFileSync('config/email.yml', 'utf-8'));
     const cv = existsSync('cv.md') ? readFileSync('cv.md', 'utf-8') : '';
     const headline = 'Cloud & Backend Engineer specializing in serverless AWS, Java microservices, and AI';
     const highlights = cv.includes('60%')
       ? 'reducing cold-start latency by 60%, cutting cloud OpEx by 65%, and building LLM-powered RAG systems'
       : 'building and scaling distributed systems on AWS';
-
-    const cfg = jsYaml.load(readFileSync('config/email.yml', 'utf-8'));
     const name = cfg.from_name || 'Rohan P H';
 
-    const emailBody = `Hi ${contactName || target.company} team,
+    const results = [];
+    for (let i = 0; i < count && i < topN.length; i++) {
+      const target = topN[i];
+
+      // Try fetching the company's job page for contact info
+      let contactEmail = null;
+      let contactName = null;
+      if (target.id) {
+        try {
+          const appR = await fetch(`https://www.workatastartup.com/companies/${encodeURIComponent(target.company?.toLowerCase().replace(/[^a-z0-9]/g, '-') || '')}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+          });
+          const appData = await appR.json();
+          if (appData.company) {
+            contactEmail = appData.company.founder_email || appData.company.contact_email;
+            contactName = appData.company.founder_name || appData.company.contact_name;
+          }
+        } catch {}
+      }
+      if (!contactEmail) {
+        const domain = target.company?.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+        const nameParts = target.company?.split(/[\s-]+/) || [];
+        const first = nameParts[0]?.toLowerCase() || 'hello';
+        contactEmail = `${first}@${domain}`;
+        contactName = `${target.company} Team`;
+      }
+
+      const emailBody = `Hi ${contactName || target.company} team,
 
 I'm reaching out about the ${target.title} role at ${target.company}. 
 
@@ -375,27 +373,30 @@ Best,
 ${name}
 ${cfg.candidate_linkedin || ''}`;
 
-    // 5. Send email via clean send-email endpoint
-    let emailResult = { success: false };
-    try {
-      const r = await fetch((EMAIL_SVC || 'http://localhost:' + PORT).replace(/\/+$/, '') + '/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: contactEmail, subject: `Application for ${target.title} at ${target.company}`, text: emailBody }),
-      });
-      emailResult = await r.json();
-    } catch (e) { emailResult = { success: false, error: e.message }; }
+      let emailResult = { success: false };
+      try {
+        const r = await fetch((EMAIL_SVC || 'http://localhost:' + PORT).replace(/\/+$/, '') + '/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: contactEmail, subject: `Application for ${target.title} at ${target.company}`, text: emailBody }),
+        });
+        emailResult = await r.json();
+      } catch (e) { emailResult = { success: false, error: e.message }; }
 
-    // 6. Save outreach draft
-    const ts = new Date().toISOString();
-    const draftLine = `${ts}\t${target.company}\t${target.title}\t${contactName}\t${contactEmail}\toutreach\tpending\tApplication for ${target.title} at ${target.company}\t${emailBody.substring(0,100)}...\n`;
-    writeFileSync('data/outreach.tsv', draftLine, { flag: 'as+' });
+      const ts = new Date().toISOString();
+      const draftLine = `${ts}\t${target.company}\t${target.title}\t${contactName}\t${contactEmail}\toutreach\t${emailResult.success ? 'sent' : 'pending'}\tApplication for ${target.title} at ${target.company}\t${emailBody.substring(0,100)}...\n`;
+      writeFileSync('data/outreach.tsv', draftLine, { flag: 'as+' });
+
+      results.push({
+        target: { company: target.company, title: target.title, score: target.score },
+        contact: { name: contactName, email: contactEmail },
+        email_sent: emailResult.success,
+      });
+    }
 
     res.json({
-      success: true,
-      target: { company: target.company, title: target.title, score: target.score },
-      contact: { name: contactName, email: contactEmail },
-      email_sent: emailResult.success,
+      success: results.some(r => r.email_sent),
+      emails: results,
       total_scraped: allJobs.length,
       shortlisted: scored.length,
       top_3: scored.slice(0, 3).map(j => ({ company: j.company, title: j.title, score: j.score })),
