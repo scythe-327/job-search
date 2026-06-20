@@ -149,6 +149,36 @@ ${cfg.candidate_linkedin || ''}`;
   }
 });
 
+// Clean send-email endpoint (no template wrapping). Proxies to EMAIL_SVC if configured.
+app.post('/send-email', async (req, res) => {
+  try {
+    const { to, subject, text } = req.body || {};
+    if (!to || !subject) return res.status(400).json({ error: '"to" and "subject" required' });
+
+    if (EMAIL_SVC) {
+      const r = await fetch(EMAIL_SVC.replace(/\/+$/, '') + '/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, text: text || '' }),
+      });
+      return res.json(await r.json());
+    }
+
+    const cfg = (await import('js-yaml')).load((await import('fs')).readFileSync('config/email.yml', 'utf-8'));
+    const transporter = (await import('nodemailer')).default.createTransport({
+      host: cfg.smtp_host, port: cfg.smtp_port, secure: cfg.smtp_secure,
+      auth: { user: cfg.smtp_user, pass: cfg.smtp_pass },
+    });
+    await transporter.sendMail({
+      from: `"${cfg.from_name}" <${cfg.from_email}>`,
+      to, subject, text: text || '',
+    });
+    res.json({ success: true, to, subject });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/run/doctor', async (_req, res) => {
   try {
     await runScript('doctor.mjs');
@@ -345,18 +375,16 @@ Best,
 ${name}
 ${cfg.candidate_linkedin || ''}`;
 
-    // 5. Send email via Koyeb proxy
+    // 5. Send email via clean send-email endpoint
     let emailResult = { success: false };
-    if (EMAIL_SVC) {
-      try {
-        const r = await fetch(EMAIL_SVC.replace(/\/+$/, '') + '/run/test-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: contactEmail, subject: `Application for ${target.title} at ${target.company}`, message: emailBody }),
-        });
-        emailResult = await r.json();
-      } catch (e) { emailResult = { success: false, error: e.message }; }
-    }
+    try {
+      const r = await fetch((EMAIL_SVC || 'http://localhost:' + PORT).replace(/\/+$/, '') + '/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: contactEmail, subject: `Application for ${target.title} at ${target.company}`, text: emailBody }),
+      });
+      emailResult = await r.json();
+    } catch (e) { emailResult = { success: false, error: e.message }; }
 
     // 6. Save outreach draft
     const ts = new Date().toISOString();
