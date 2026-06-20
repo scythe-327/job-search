@@ -48,9 +48,9 @@ candidate_portfolio: 'https://rohanph-cloud-engineer-75sm7wl.gamma.site/'
 1. **Create App** → name: `career-ops`
 2. **Create Service** → select your GitHub repo, branch `main`
 3. **Builder**: `Dockerfile`
-4. **Service type**: `Worker`
+4. **Service type**: `Web`
 5. **Instance**: `micro` or `nano` (512MB RAM is enough)
-6. **Ports**: not needed for Worker type (health is via TCP)
+6. **Ports**: `8000` (HTTP — must match the Express server)
 7. **Volumes**:
    - `/app/data`
    - `/app/output`

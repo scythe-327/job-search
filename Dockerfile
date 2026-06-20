@@ -11,6 +11,6 @@ RUN npx playwright install --with-deps chromium
 
 COPY . .
 
-EXPOSE 3000
+EXPOSE 8000
 
 CMD ["node", "server.mjs"]
